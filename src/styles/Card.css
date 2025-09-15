@@ -1,0 +1,57 @@
+.card {
+  width: 250px;
+  height: 130px;
+  border-radius: 16px;
+  padding: 20px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.25);
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.card-subtitle {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.card-value {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+/* Gradient backgrounds */
+.gradient-cr {
+  background: linear-gradient(135deg, #0e7490, #be185d);
+}
+
+.gradient-cfr {
+  background: linear-gradient(135deg, #15803d, #1e3a8a);
+}
+
+.gradient-st {
+  background: linear-gradient(135deg, #ea580c, #6b21a8);
+}
+
+.gradient-otfd {
+  background: linear-gradient(135deg, #374151, #581c87);
+}
+
+.gradient-revenue {
+  background: linear-gradient(135deg, #ea580c, #6b21a8);
+}
+
+.gradient-reserve {
+  background: linear-gradient(135deg, #ea580c, #6b21a8);
+}
