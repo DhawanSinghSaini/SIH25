@@ -11,6 +11,7 @@ import UserManagement from './pages/UserManagement';
 import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 import FRAClaimPage from './pages/FRAClaimPage';
+import DSSPage from './pages/DSSPage';
 
 function App() {
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -43,6 +44,8 @@ function App() {
               <FRAClaimPage />
             ) : activeSection === 'profile' ? (
               <ProfilePage />
+            ) : activeSection === 'dss' ? (
+              <DSSPage />
             ) : (
               <div className="text-center text-gray-500">Section not found.</div>
             )}
