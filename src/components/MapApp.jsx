@@ -10,12 +10,15 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "../styles/sidebar.css";
+
 
 // 🔹 Component to zoom to feature bounds
 const FitBounds = ({ feature }) => {
   const map = useMap();
   useEffect(() => {
     if (feature) {
+      console.log("🔍 Zooming to feature:", feature);
       const layer = new L.GeoJSON(feature);
       map.fitBounds(layer.getBounds());
     }
@@ -23,7 +26,7 @@ const FitBounds = ({ feature }) => {
   return null;
 };
 
-const MapApp = () => {
+const MapApp = ({ filters }) => {
   const [states, setStates] = useState(null);
   const [districts, setDistricts] = useState(null);
   const [villages, setVillages] = useState(null);
@@ -49,80 +52,128 @@ const MapApp = () => {
   // 🌍 Load States
   useEffect(() => {
     if (view === "states") {
-      fetch("http://localhost:5000/states")
+      console.log("🌍 Fetching states...");
+      let url = "http://localhost:5000/states";
+
+      // ✅ Apply filters if present
+      const queryParams = new URLSearchParams(
+        Object.entries(filters || {}).filter(([_, v]) => v) // only non-empty
+      );
+      if (queryParams.toString()) {
+        url += `?${queryParams.toString()}`;
+      }
+
+      fetch(url)
         .then((res) => res.json())
         .then((data) => {
+          console.log("✅ States fetched:", data);
+
+          if (data.length > 0) {
+            console.log("Raw geom from backend:", data[0].geom);
+          }
+
           setStates({
             type: "FeatureCollection",
-            features: data.map((s) => ({
-              type: "Feature",
-              geometry: JSON.parse(s.geom),
-              properties: { id: s.gid, name: s.state_name },
-            })),
+            features: data.map((s) => {
+              let geom;
+              try {
+                geom = typeof s.geom === "string" ? JSON.parse(s.geom) : s.geom;
+              } catch (err) {
+                console.error("❌ Error parsing geom:", s.geom, err);
+                geom = null;
+              }
+
+              return {
+                type: "Feature",
+                geometry: geom,
+                properties: { id: s.gid, name: s.state },
+              };
+            }),
           });
           setDistricts(null);
           setVillages(null);
           setAssets([]);
           setSelectedFeature(null);
         })
-        .catch((err) => console.error("Error fetching states:", err));
+        .catch((err) => console.error("❌ Error fetching states:", err));
     }
-  }, [view]);
+  }, [view, filters]);
 
   // 📌 Load Districts
   const loadDistricts = (stateId, feature) => {
+    console.log(`📌 Loading districts for stateId=${stateId}`, feature);
     setSelectedFeature({ type: "FeatureCollection", features: [feature] });
 
     fetch(`http://localhost:5000/states/${stateId}/districts`)
       .then((res) => res.json())
       .then((data) => {
+        console.log("✅ Districts fetched:", data);
+
         setDistricts({
           type: "FeatureCollection",
-          features: data.map((d) => ({
-            type: "Feature",
-            geometry: JSON.parse(d.geom),
-            properties: { id: d.gid, name: d.district },
-          })),
+          features: data.map((d) => {
+            if (d.type === "Feature") return d;
+            const geom = typeof d.geom === "string" ? JSON.parse(d.geom) : d.geom;
+            return {
+              type: "Feature",
+              geometry: geom,
+              properties: { id: d.gid, name: d.district },
+            };
+          }),
         });
+
         setView("districts");
         setVillages(null);
         setAssets([]);
       })
-      .catch((err) => console.error("Error fetching districts:", err));
+      .catch((err) => console.error("❌ Error fetching districts:", err));
   };
 
   // 📌 Load Villages
-  const loadVillages = (districtId, feature) => {
+  const loadVillages = (districtName, feature) => {
+    console.log(`📌 Loading villages for districtName=${districtName}`, feature);
     setSelectedFeature({ type: "FeatureCollection", features: [feature] });
 
-    fetch(`http://localhost:5000/districts/${districtId}/villages`)
+    fetch(`http://localhost:5000/districts/${districtName}/villages`)
       .then((res) => res.json())
       .then((data) => {
+        console.log("✅ Villages fetched:", data);
         setVillages({
           type: "FeatureCollection",
-          features: data.map((v) => ({
-            type: "Feature",
-            geometry: JSON.parse(v.geom),
-            properties: { id: v.gid, name: v.village },
-          })),
+          features: data.map((v) => {
+            let geom;
+            try {
+              geom = typeof v.geom === "string" ? JSON.parse(v.geom) : v.geom;
+            } catch (err) {
+              console.error("❌ Error parsing village geom:", v.geom, err);
+              geom = null;
+            }
+            return {
+              type: "Feature",
+              geometry: geom,
+              properties: { id: v.id, name: v.village },
+            };
+          }),
         });
         setView("villages");
         setAssets([]);
       })
-      .catch((err) => console.error("Error fetching villages:", err));
+      .catch((err) => console.error("❌ Error fetching villages:", err));
   };
 
   // 📌 Load Assets
   const loadAssets = (villageId, feature) => {
+    console.log(`📌 Loading assets for villageId=${villageId}`, feature);
     setSelectedFeature({ type: "FeatureCollection", features: [feature] });
 
     fetch(`http://localhost:5000/villages/${villageId}/assets`)
       .then((res) => res.json())
       .then((data) => {
+        console.log("✅ Assets fetched:", data);
         setAssets(data);
         setView("assets");
       })
-      .catch((err) => console.error("Error fetching assets:", err));
+      .catch((err) => console.error("❌ Error fetching assets:", err));
   };
 
   // 🔹 Handlers
@@ -133,7 +184,7 @@ const MapApp = () => {
 
   const onEachDistrict = (feature, layer) => {
     layer.bindPopup(feature.properties.name);
-    layer.on("click", () => loadVillages(feature.properties.id, feature));
+    layer.on("click", () => loadVillages(feature.properties.name, feature));
   };
 
   const onEachVillage = (feature, layer) => {
@@ -143,8 +194,9 @@ const MapApp = () => {
 
   return (
     <div style={{ display: "flex" }}>
+      
       {/* Sidebar */}
-      <div style={{ width: "250px", padding: "10px", background: "#f4f4f4" }}>
+      <div className="sidebar">
         <h3>Navigation</h3>
         <button onClick={() => setView("states")}>🏠 Back to States</button>
 
@@ -162,7 +214,7 @@ const MapApp = () => {
           districts.features.map((d) => (
             <button
               key={d.properties.id}
-              onClick={() => loadVillages(d.properties.id, d)}
+              onClick={() => loadVillages(d.properties.name, d)}
             >
               {d.properties.name}
             </button>
@@ -186,15 +238,13 @@ const MapApp = () => {
         style={{ height: "100vh", flex: 1 }}
       >
         <LayersControl position="topright">
-          {/* 🌍 Street Map */}
           <LayersControl.BaseLayer checked name="Street Map">
             <TileLayer
               url={`https://maps.geoapify.com/v1/tile/maptiler-3d/{z}/{x}/{y}.png?apiKey=a583310ad97248b8873271116d89deef`}
-              attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://www.geoapify.com/">Geoapify</a>'
+              attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, © <a href="https://www.geoapify.com/">Geoapify</a>'
             />
           </LayersControl.BaseLayer>
 
-          {/* 🛰️ Satellite Map */}
           <LayersControl.BaseLayer name="Satellite">
             <TileLayer
               url={`https://maps.geoapify.com/v1/tile/satellite/{z}/{x}/{y}.png?apiKey=a583310ad97248b8873271116d89deef`}
@@ -203,36 +253,30 @@ const MapApp = () => {
           </LayersControl.BaseLayer>
         </LayersControl>
 
-        {/* Show States / Districts / Villages */}
+        {/* Layers */}
         {view === "states" && states && (
           <GeoJSON data={states} style={defaultStyle} onEachFeature={onEachState} />
         )}
 
-        {view === "districts" && districts && (
-          <GeoJSON
-            data={districts}
-            style={defaultStyle}
-            onEachFeature={onEachDistrict}
-          />
+        {view !== "states" && districts && (
+          <GeoJSON data={districts} style={defaultStyle} onEachFeature={onEachDistrict} />
         )}
 
         {view === "villages" && villages && (
-          <GeoJSON
-            data={villages}
-            style={defaultStyle}
-            onEachFeature={onEachVillage}
-          />
+          <GeoJSON data={villages} style={defaultStyle} onEachFeature={onEachVillage} />
         )}
 
-        {/* Show Assets */}
         {view === "assets" &&
           assets.map((a, idx) => {
-            const geom = JSON.parse(a.geom);
+            let geom;
+            try {
+              geom = JSON.parse(a.geom);
+            } catch (err) {
+              console.error("❌ Error parsing asset geom:", a.geom, err);
+              return null;
+            }
             return (
-              <Marker
-                key={idx}
-                position={[geom.coordinates[1], geom.coordinates[0]]}
-              >
+              <Marker key={idx} position={[geom.coordinates[1], geom.coordinates[0]]}>
                 <Popup>
                   <b>{a.name}</b> <br />
                   Type: {a.type}
