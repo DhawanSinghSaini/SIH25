@@ -8,7 +8,7 @@ const Sidebar = ({ onNavigate }) => {
         <button onClick={() => onNavigate('claims')} className="text-left px-3 py-2 rounded-md hover:bg-blue-100">FRA Claims</button>
         <button onClick={() => onNavigate('map')} className="text-left px-3 py-2 rounded-md hover:bg-blue-100">Atlas Map</button>
         <button onClick={() => onNavigate('assets')} className="text-left px-3 py-2 rounded-md hover:bg-blue-100">Asset Mapping</button>
-        <button onClick={() => onNavigate('dss')} className="text-left px-3 py-2 rounded-md hover:bg-blue-100">DSS Schemes</button>
+        <button onClick={() => onNavigate('dss')} className="text-left px-3 py-2 rounded-md hover:bg-blue-100">DSS Engine</button>
         <button onClick={() => onNavigate('reports')} className="text-left px-3 py-2 rounded-md hover:bg-blue-100">Reports</button>
         {isAdmin && (
           <button onClick={() => onNavigate('admin')} className="text-left px-3 py-2 rounded-md hover:bg-blue-100">User Management</button>
@@ -20,4 +20,5 @@ const Sidebar = ({ onNavigate }) => {
 };
 
 export default Sidebar;
+
 
