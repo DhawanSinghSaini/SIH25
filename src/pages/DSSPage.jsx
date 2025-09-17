@@ -3,6 +3,7 @@ import DSSAvailableSchemesCard from '../components/DSSAvailableSchemesCard';
 import DSSLinkedSchemesCard from '../components/DSSLinkedSchemesCard';
 import DSSTotalBeneficiariesCard from '../components/DSSTotalBeneficiariesCard';
 import MapComponent from '../components/MapComponent';
+import MapApp from '../components/MapApp';
 
 const DSSPage = () => {
   const [selectedVillage, setSelectedVillage] = useState(null);
@@ -222,7 +223,7 @@ const DSSPage = () => {
   </p>
 
   <div className="border rounded-md overflow-hidden mb-6">
-    <MapComponent onVillageClick={(villageData) => setSelectedVillage(villageData)} />
+    <MapApp onVillageClick={(villageData) => setSelectedVillage(villageData)} />
   </div>
 
   {/* Scheme Eligibility Popup */}
