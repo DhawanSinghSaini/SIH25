@@ -76,6 +76,25 @@ app.get("/districts/:districtName/gomati", async (req, res) => {
   }
 });
 
+app.get("/api/tribals", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        name,
+        village,
+        state,
+        district,
+        ST_AsGeoJSON(ST_Transform(geom, 4326))::json as geom
+      FROM tribals;
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching tribals:", err);
+    res.status(500).send("Database error");
+  }
+});
+
+
 app.get("/tipuraAssets", async(req,res)=>{
   try{
     const result = await pool.query(

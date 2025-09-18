@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import MapComponent from '../components/MapComponent';
+import MapApp from '../components/MapApp';
 import { getVillageData } from '../../dssUpload';
 
 const DSSPage = () => {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FaBars, FaTimes } from 'react-icons/fa'; // <-- import icons
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Footer from './components/Footer';
@@ -15,26 +16,20 @@ import FRAClaimPage from './pages/FRAClaimPage';
 import DSSPage from './pages/DSSPage';
 
 function App() {
-  // State to manage login status. Initially false to show the landing page.
+  const [showSidebar, setShowSidebar] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
-  
-  // This would be your authentication logic.
-  // For now, it just sets isLoggedIn to true.
+
   const handleLogin = () => {
     setIsLoggedIn(true);
-    // After login, navigate to the main dashboard
-    setActiveSection('dashboard'); 
+    setActiveSection('dashboard');
   };
-  
-  // A function to handle logging out
+
   const handleLogout = () => {
     setIsLoggedIn(false);
   };
 
-  // If the user is not logged in, show the LandingPage
   if (!isLoggedIn) {
-    // Pass the handleLogin function to the LandingPage
     return <LandingPage onLogin={handleLogin} />;
   }
 
@@ -42,11 +37,19 @@ function App() {
     <div className="min-h-screen flex flex-col bg-gray-100">
       <Navbar onNavigate={setActiveSection} onLogout={handleLogout} />
 
+      {/* Sidebar Toggle Icon */}
+      <div
+        onClick={() => setShowSidebar(!showSidebar)}
+        className="absolute top-4 left-4 bg-green-600 text-white p-2 rounded-full shadow cursor-pointer z-[1000]"
+      >
+        {showSidebar ? <FaTimes size={18} /> : <FaBars size={18} />}
+      </div>
+
       {/* Sidebar + Content */}
       <div className="flex flex-1">
-        <Sidebar onNavigate={setActiveSection} />
+        {showSidebar && <Sidebar onNavigate={setActiveSection} />}
 
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 transition-all duration-300">
           <div className="bg-white rounded-lg shadow-md p-6 space-y-8">
             {activeSection === 'dashboard' ? (
               <Home />
@@ -73,7 +76,6 @@ function App() {
         </main>
       </div>
 
-      {/* Footer */}
       <Footer />
     </div>
   );
