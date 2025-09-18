@@ -44,12 +44,12 @@ app.get("/states", async (req, res) => {
   }
 });
 
-app.get("/states/:stateId/districts", async (req, res) => {
-  const { stateId } = req.params;
+app.get("/states/:stateName/districts", async (req, res) => {
+  const { stateName } = req.params;
   try {
     const result = await pool.query(
-      "SELECT gid, district, district_boundary.state_lgd, state_ut, ST_AsGeoJSON(geom) as geom FROM district_boundary WHERE district_boundary.state_lgd = $1",
-      [stateId]
+      "SELECT gid, district, district_boundary.state_lgd, state_ut,ST_AsGeoJSON(ST_Transform(geom, 4326))::json AS geom  FROM district_boundary WHERE district_boundary.state_ut = $1",
+      [stateName]
     );
     res.json(result.rows);
   } catch (err) {
@@ -62,13 +62,11 @@ app.get("/states/:stateId/districts", async (req, res) => {
 
 
 // Get villages by district name
-app.get("/districts/:districtName/villages", async (req, res) => {
+app.get("/districts/:districtName/gomati", async (req, res) => {
   const { districtName } = req.params;
   try {
     const result = await pool.query(
-      `SELECT id, name
-       FROM villages
-       WHERE UPPER(addressstate_district) = UPPER($1)`,  // ✅ normalize case
+      "SELECT gid As id, vill_name As name, ST_AsGeoJSON(ST_Transform(geom, 4326)) FROM gomati WHERE UPPER(district) = UPPER($1)",  // ✅ normalize case
       [districtName]
     );
     res.json(result.rows);
