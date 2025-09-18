@@ -66,7 +66,7 @@ app.get("/districts/:districtName/gomati", async (req, res) => {
   const { districtName } = req.params;
   try {
     const result = await pool.query(
-      "SELECT gid As id, vill_name As name, ST_AsGeoJSON(ST_Transform(geom, 4326))::json AS geom FROM gomati WHERE UPPER(district) = UPPER($1)",  // ✅ normalize case
+      "SELECT gid As id, vill_name As name, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geom FROM gomati WHERE UPPER(district) = UPPER($1)", 
       [districtName]
     );
     res.json(result.rows);
