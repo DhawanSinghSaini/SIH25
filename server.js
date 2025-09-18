@@ -66,7 +66,7 @@ app.get("/districts/:districtName/gomati", async (req, res) => {
   const { districtName } = req.params;
   try {
     const result = await pool.query(
-      "SELECT gid As id, vill_name As name, ST_AsGeoJSON(ST_Transform(geom, 4326)) FROM gomati WHERE UPPER(district) = UPPER($1)",  // ✅ normalize case
+      "SELECT gid As id, vill_name As name, ST_AsGeoJSON(ST_Transform(geom, 4326))::json AS geom FROM gomati WHERE UPPER(district) = UPPER($1)",  // ✅ normalize case
       [districtName]
     );
     res.json(result.rows);
@@ -76,7 +76,17 @@ app.get("/districts/:districtName/gomati", async (req, res) => {
   }
 });
 
-
+app.get("/tipuraAssets", async(req,res)=>{
+  try{
+    const result = await pool.query(
+      "SELECT district,village,vegetation_index, soil_index,n_water_index, geographic_rationale FROM  tripura_geo_data"
+    );
+    res.json(result.rows);
+  }catch(err){
+    console.error("Error fetching tripura assets:", err);
+    res.status(500).send("Database error");
+  }
+});
 
 
 

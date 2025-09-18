@@ -116,28 +116,26 @@ const MapApp = ({ filters }) => {
   };
 
   // 📌 Load Villages
- const loadVillages = (districtName, feature) => {
-  console.log(`📌 Loading villages for districtName=${districtName}`);
-  setSelectedFeature({ type: "FeatureCollection", features: [feature] });
-  fetch(`http://localhost:5000/districts/${districtName}/gomati`)
-    .then((res) => res.json())
-    .then((data) => {
-      console.log("✅ Villages fetched:", data);
-      setVillages({
-        type: "FeatureCollection",
-        features: data.map((v) => ({
-          type: "Feature",
-          // The 'geom' property from the API is now correctly used
-          geometry: typeof v.geom === "string" ? JSON.parse(v.geom) : v.geom,
-          // The API now sends 'id' and 'name', which solves the key warning
-          properties: { id: v.id, name: v.name },
-        })),
-      });
-      setView("villages");
-      setAssets([]);
-    })
-    .catch((err) => console.error("❌ Error fetching villages:", err));
-};
+  const loadVillages = (districtName, feature) => {
+    console.log(`📌 Loading villages for districtName=${districtName}`);
+    setSelectedFeature({ type: "FeatureCollection", features: [feature] });
+    fetch(`http://localhost:5000/districts/${districtName}/gomati`)
+      .then((res) => res.json())
+      .then((data) => {
+        console.log("✅ Villages fetched:", data);
+        setVillages({
+          type: "FeatureCollection",
+          features: data.map((v) => ({
+            type: "Feature",
+            geometry: typeof v.geom === "string" ? JSON.parse(v.geom) : v.geom,
+            properties: { id: v.id, name: v.name },
+          })),
+        });
+        setView("villages");
+        setAssets([]);
+      })
+      .catch((err) => console.error("❌ Error fetching villages:", err));
+  };
 
   // 📌 Load Assets
   const loadAssets = (villageId, feature) => {
@@ -318,7 +316,7 @@ const MapApp = ({ filters }) => {
           </LayersControl.BaseLayer>
         </LayersControl>
 
-        {/* --- MODIFIED LAYER RENDERING LOGIC --- */}
+        {/* --- LAYER RENDERING LOGIC --- */}
         
         {view === "states" && states && (
           <GeoJSON
