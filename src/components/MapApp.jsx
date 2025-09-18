@@ -12,7 +12,6 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "../styles/sidebar.css";
 
-
 // 🔹 Component to zoom to feature bounds
 const FitBounds = ({ feature }) => {
   const map = useMap();
@@ -26,7 +25,11 @@ const FitBounds = ({ feature }) => {
   return null;
 };
 
+// ====================================================================
+// ✅ MAIN APP COMPONENT
+// ====================================================================
 const MapApp = ({ filters }) => {
+  // --- STATE MANAGEMENT ---
   const [states, setStates] = useState(null);
   const [districts, setDistricts] = useState(null);
   const [villages, setVillages] = useState(null);
@@ -34,7 +37,11 @@ const MapApp = ({ filters }) => {
   const [view, setView] = useState("states");
   const [selectedFeature, setSelectedFeature] = useState(null);
 
-  // 🎨 Styles
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedDistrict, setSelectedDistrict] = useState("");
+  const [selectedVillage, setSelectedVillage] = useState("");
+
+  // --- STYLES ---
   const defaultStyle = {
     color: "black",
     weight: 1,
@@ -49,46 +56,31 @@ const MapApp = ({ filters }) => {
     fillOpacity: 0.1,
   };
 
+  // --- DATA FETCHING ---
+
   // 🌍 Load States
   useEffect(() => {
     if (view === "states") {
       console.log("🌍 Fetching states...");
       let url = "http://localhost:5000/states";
-
-      // ✅ Apply filters if present
       const queryParams = new URLSearchParams(
-        Object.entries(filters || {}).filter(([_, v]) => v) // only non-empty
+        Object.entries(filters || {}).filter(([_, v]) => v)
       );
       if (queryParams.toString()) {
         url += `?${queryParams.toString()}`;
       }
-
       fetch(url)
         .then((res) => res.json())
         .then((data) => {
           console.log("✅ States fetched:", data);
-
-          if (data.length > 0) {
-            console.log("Raw geom from backend:", data[0].geom);
-          }
-
           setStates({
             type: "FeatureCollection",
-            features: data.map((s) => {
-              let geom;
-              try {
-                geom = typeof s.geom === "string" ? JSON.parse(s.geom) : s.geom;
-              } catch (err) {
-                console.error("❌ Error parsing geom:", s.geom, err);
-                geom = null;
-              }
-
-              return {
-                type: "Feature",
-                geometry: geom,
-                properties: { id: s.gid, name: s.state },
-              };
-            }),
+            features: data.map((s) => ({
+              type: "Feature",
+              geometry:
+                typeof s.geom === "string" ? JSON.parse(s.geom) : s.geom,
+              properties: { id: s.gid, name: s.state },
+            })),
           });
           setDistricts(null);
           setVillages(null);
@@ -100,28 +92,22 @@ const MapApp = ({ filters }) => {
   }, [view, filters]);
 
   // 📌 Load Districts
-  const loadDistricts = (stateId, feature) => {
-    console.log(`📌 Loading districts for stateId=${stateId}`, feature);
+  const loadDistricts = (stateName, feature) => {
+    console.log(`📌 Loading districts for stateName=${stateName}`);
     setSelectedFeature({ type: "FeatureCollection", features: [feature] });
-
-    fetch(`http://localhost:5000/states/${stateId}/districts`)
+    fetch(`http://localhost:5000/states/${stateName}/districts`)
       .then((res) => res.json())
       .then((data) => {
         console.log("✅ Districts fetched:", data);
-
         setDistricts({
           type: "FeatureCollection",
-          features: data.map((d) => {
-            if (d.type === "Feature") return d;
-            const geom = typeof d.geom === "string" ? JSON.parse(d.geom) : d.geom;
-            return {
-              type: "Feature",
-              geometry: geom,
-              properties: { id: d.gid, name: d.district },
-            };
-          }),
+          features: data.map((d) => ({
+            type: "Feature",
+            geometry:
+              typeof d.geom === "string" ? JSON.parse(d.geom) : d.geom,
+            properties: { id: d.gid, name: d.district },
+          })),
         });
-
         setView("districts");
         setVillages(null);
         setAssets([]);
@@ -131,29 +117,19 @@ const MapApp = ({ filters }) => {
 
   // 📌 Load Villages
   const loadVillages = (districtName, feature) => {
-    console.log(`📌 Loading villages for districtName=${districtName}`, feature);
+    console.log(`📌 Loading villages for districtName=${districtName}`);
     setSelectedFeature({ type: "FeatureCollection", features: [feature] });
-
-    fetch(`http://localhost:5000/districts/${districtName}/villages`)
+    fetch(`http://localhost:5000/districts/${districtName}/gomati`)
       .then((res) => res.json())
       .then((data) => {
         console.log("✅ Villages fetched:", data);
         setVillages({
           type: "FeatureCollection",
-          features: data.map((v) => {
-            let geom;
-            try {
-              geom = typeof v.geom === "string" ? JSON.parse(v.geom) : v.geom;
-            } catch (err) {
-              console.error("❌ Error parsing village geom:", v.geom, err);
-              geom = null;
-            }
-            return {
-              type: "Feature",
-              geometry: geom,
-              properties: { id: v.id, name: v.village },
-            };
-          }),
+          features: data.map((v) => ({
+            type: "Feature",
+            geometry: typeof v.geom === "string" ? JSON.parse(v.geom) : v.geom,
+            properties: { id: v.id, name: v.name },
+          })),
         });
         setView("villages");
         setAssets([]);
@@ -163,9 +139,8 @@ const MapApp = ({ filters }) => {
 
   // 📌 Load Assets
   const loadAssets = (villageId, feature) => {
-    console.log(`📌 Loading assets for villageId=${villageId}`, feature);
+    console.log(`📌 Loading assets for villageId=${villageId}`);
     setSelectedFeature({ type: "FeatureCollection", features: [feature] });
-
     fetch(`http://localhost:5000/villages/${villageId}/assets`)
       .then((res) => res.json())
       .then((data) => {
@@ -176,62 +151,151 @@ const MapApp = ({ filters }) => {
       .catch((err) => console.error("❌ Error fetching assets:", err));
   };
 
-  // 🔹 Handlers
+  // --- HANDLERS ---
+
+  // Handlers for map clicks (drill-down)
   const onEachState = (feature, layer) => {
     layer.bindPopup(feature.properties.name);
-    layer.on("click", () => loadDistricts(feature.properties.id, feature));
+    layer.on("click", () => {
+      setSelectedState(feature.properties.id);
+      loadDistricts(feature.properties.name, feature);
+    });
   };
 
   const onEachDistrict = (feature, layer) => {
     layer.bindPopup(feature.properties.name);
-    layer.on("click", () => loadVillages(feature.properties.name, feature));
+    layer.on("click", () => {
+      setSelectedDistrict(feature.properties.name);
+      loadVillages(feature.properties.name, feature);
+    });
   };
 
   const onEachVillage = (feature, layer) => {
     layer.bindPopup(feature.properties.name);
-    layer.on("click", () => loadAssets(feature.properties.id, feature));
+    layer.on("click", () => {
+      setSelectedVillage(feature.properties.id);
+      loadAssets(feature.properties.id, feature);
+    });
   };
 
+  // Handlers for dropdown changes
+  const handleStateChange = (e) => {
+    const stateId = e.target.value;
+    setSelectedState(stateId);
+    setSelectedDistrict("");
+    setSelectedVillage("");
+
+    if (stateId) {
+      const feature = states.features.find(
+        (s) => s.properties.id.toString() === stateId
+      );
+      if (feature) {
+        loadDistricts(feature.properties.name, feature);
+      }
+    } else {
+      handleBackToStates();
+    }
+  };
+
+  const handleDistrictChange = (e) => {
+    const districtName = e.target.value;
+    setSelectedDistrict(districtName);
+    setSelectedVillage("");
+
+    if (districtName) {
+      const feature = districts.features.find(
+        (d) => d.properties.name === districtName
+      );
+      if (feature) {
+        loadVillages(districtName, feature);
+      }
+    }
+  };
+
+  const handleVillageChange = (e) => {
+    const villageId = e.target.value;
+    setSelectedVillage(villageId);
+
+    if (villageId) {
+      const feature = villages.features.find(
+        (v) => v.properties.id.toString() === villageId
+      );
+      if (feature) {
+        loadAssets(villageId, feature);
+      }
+    }
+  };
+
+  const handleBackToStates = () => {
+    setView("states");
+    setSelectedState("");
+    setSelectedDistrict("");
+    setSelectedVillage("");
+    setDistricts(null);
+    setVillages(null);
+    setAssets([]);
+    setSelectedFeature(null);
+  };
+
+  // --- RENDER ---
   return (
     <div style={{ display: "flex" }}>
-      
-      {/* Sidebar */}
       <div className="sidebar">
         <h3>Navigation</h3>
-        <button onClick={() => setView("states")}>🏠 Back to States</button>
+        <button onClick={handleBackToStates}>🏠 Back to States View</button>
 
-        {states &&
-          states.features.map((s) => (
-            <button
-              key={s.properties.id}
-              onClick={() => loadDistricts(s.properties.id, s)}
-            >
-              {s.properties.name}
-            </button>
-          ))}
+        <label htmlFor="state-select">State</label>
+        <select
+          id="state-select"
+          value={selectedState}
+          onChange={handleStateChange}
+        >
+          <option value="">-- Select a State --</option>
+          {states &&
+            states.features.map((s) => (
+              <option key={s.properties.id} value={s.properties.id}>
+                {s.properties.name}
+              </option>
+            ))}
+        </select>
 
-        {districts &&
-          districts.features.map((d) => (
-            <button
-              key={d.properties.id}
-              onClick={() => loadVillages(d.properties.name, d)}
+        {districts && (
+          <>
+            <label htmlFor="district-select">District</label>
+            <select
+              id="district-select"
+              value={selectedDistrict}
+              onChange={handleDistrictChange}
             >
-              {d.properties.name}
-            </button>
-          ))}
+              <option value="">-- Select a District --</option>
+              {districts.features.map((d) => (
+                <option key={d.properties.id} value={d.properties.name}>
+                  {d.properties.name}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
 
-        {villages &&
-          villages.features.map((v) => (
-            <button
-              key={v.properties.id}
-              onClick={() => loadAssets(v.properties.id, v)}
+        {villages && (
+          <>
+            <label htmlFor="village-select">Village</label>
+            <select
+              id="village-select"
+              value={selectedVillage}
+              onChange={handleVillageChange}
             >
-              {v.properties.name}
-            </button>
-          ))}
+              <option value="">-- Select a Village --</option>
+              {villages.features.map((v) => (
+                <option key={v.properties.id} value={v.properties.id}>
+                  {v.properties.name}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
       </div>
 
-      {/* Map */}
       <MapContainer
         center={[23.5, 78.5]}
         zoom={5}
@@ -244,7 +308,6 @@ const MapApp = ({ filters }) => {
               attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, © <a href="https://www.geoapify.com/">Geoapify</a>'
             />
           </LayersControl.BaseLayer>
-
           <LayersControl.BaseLayer name="Satellite">
             <TileLayer
               url={`https://maps.geoapify.com/v1/tile/satellite/{z}/{x}/{y}.png?apiKey=a583310ad97248b8873271116d89deef`}
@@ -253,43 +316,77 @@ const MapApp = ({ filters }) => {
           </LayersControl.BaseLayer>
         </LayersControl>
 
-        {/* Layers */}
+        {/* --- LAYER RENDERING LOGIC --- */}
+        
         {view === "states" && states && (
-          <GeoJSON data={states} style={defaultStyle} onEachFeature={onEachState} />
+          <GeoJSON
+            data={states}
+            style={defaultStyle}
+            onEachFeature={onEachState}
+          />
         )}
 
-        {view !== "states" && districts && (
-          <GeoJSON data={districts} style={defaultStyle} onEachFeature={onEachDistrict} />
+        {view === "districts" && districts && (
+          <>
+            <GeoJSON
+              data={districts}
+              style={defaultStyle}
+              onEachFeature={onEachDistrict}
+            />
+            {selectedFeature && (
+              <>
+                <GeoJSON data={selectedFeature} style={highlightStyle} />
+                <FitBounds feature={selectedFeature} />
+              </>
+            )}
+          </>
         )}
 
         {view === "villages" && villages && (
-          <GeoJSON data={villages} style={defaultStyle} onEachFeature={onEachVillage} />
+          <>
+            <GeoJSON
+              data={villages}
+              style={defaultStyle}
+              onEachFeature={onEachVillage}
+            />
+            {selectedFeature && (
+              <>
+                <GeoJSON data={selectedFeature} style={highlightStyle} />
+                <FitBounds feature={selectedFeature} />
+              </>
+            )}
+          </>
         )}
 
-        {view === "assets" &&
-          assets.map((a, idx) => {
-            let geom;
-            try {
-              geom = JSON.parse(a.geom);
-            } catch (err) {
-              console.error("❌ Error parsing asset geom:", a.geom, err);
-              return null;
-            }
-            return (
-              <Marker key={idx} position={[geom.coordinates[1], geom.coordinates[0]]}>
-                <Popup>
-                  <b>{a.name}</b> <br />
-                  Type: {a.type}
-                </Popup>
-              </Marker>
-            );
-          })}
-
-        {/* Highlight + Zoom */}
-        {selectedFeature && (
+        {view === "assets" && assets.length > 0 && (
           <>
-            <GeoJSON data={selectedFeature} style={highlightStyle} />
-            <FitBounds feature={selectedFeature} />
+            {assets.map((a, idx) => {
+              let geom;
+              try {
+                geom =
+                  typeof a.geom === "string" ? JSON.parse(a.geom) : a.geom;
+              } catch (err) {
+                console.error("❌ Error parsing asset geom:", a.geom, err);
+                return null;
+              }
+              return (
+                <Marker
+                  key={idx}
+                  position={[geom.coordinates[1], geom.coordinates[0]]}
+                >
+                  <Popup>
+                    <b>{a.name}</b> <br />
+                    Type: {a.type}
+                  </Popup>
+                </Marker>
+              );
+            })}
+            {selectedFeature && (
+              <>
+                <GeoJSON data={selectedFeature} style={highlightStyle} />
+                <FitBounds feature={selectedFeature} />
+              </>
+            )}
           </>
         )}
       </MapContainer>

@@ -202,7 +202,7 @@ const DSSPage = () => {
   </p>
 
   <div className="border rounded-md overflow-hidden mb-6">
-    <MapComponent onVillageClick={(villageData) => setSelectedVillage(villageData)} />
+    <MapApp onVillageClick={(villageData) => setSelectedVillage(villageData)} />
   </div>
 
   {/* Scheme Eligibility Popup */}
