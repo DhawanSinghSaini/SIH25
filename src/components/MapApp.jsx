@@ -15,7 +15,6 @@ const FitBounds = ({ feature }) => {
   const map = useMap();
   useEffect(() => {
     if (feature) {
-      console.log("🔍 Zooming to feature:", feature);
       const layer = new L.GeoJSON(feature);
       map.fitBounds(layer.getBounds());
     }
@@ -33,6 +32,7 @@ const MapApp = ({ filters }) => {
   const [villages, setVillages] = useState(null);
   const [tribals, setTribals] = useState(null); // Tribal data for a village
   const [view, setView] = useState("states");
+
   const [selectedFeature, setSelectedFeature] = useState(null); // For admin boundaries
   const [selectedTribalFeature, setSelectedTribalFeature] = useState(null); // For tribal boundaries
 
@@ -63,13 +63,11 @@ const MapApp = ({ filters }) => {
     fillOpacity: 0.6,
   };
 
-
   // --- DATA FETCHING ---
 
   // 🌍 Load States
   useEffect(() => {
     if (view === "states") {
-      console.log("🌍 Fetching states...");
       let url = "http://localhost:5000/states";
       const queryParams = new URLSearchParams(
         Object.entries(filters || {}).filter(([_, v]) => v)
@@ -80,7 +78,6 @@ const MapApp = ({ filters }) => {
       fetch(url)
         .then((res) => res.json())
         .then((data) => {
-          console.log("✅ States fetched:", data);
           setStates({
             type: "FeatureCollection",
             features: data.map((s) => ({
@@ -97,57 +94,57 @@ const MapApp = ({ filters }) => {
         .catch((err) => console.error("❌ Error fetching states:", err));
     }
   }, [view, filters]);
-  
+
   // 🌳 Load Tribals based on selected village
   useEffect(() => {
-    // If a village is selected, fetch its tribals
     if (selectedVillage) {
-      console.log(`🌳 Fetching tribals for village ID: ${selectedVillage}`);
-      // NOTE: This endpoint is an assumption. Replace with your actual API endpoint.
-      fetch(`http://localhost:5000/api/tribals`)
+      fetch(`http://localhost:5000/api/tribals?village_id=${selectedVillage}`)
         .then((res) => res.json())
         .then((data) => {
-          console.log("✅ Tribals for village fetched:", data);
-          setTribals({
-            type: "FeatureCollection",
-            features: data.map((t) => ({
-              type: "Feature",
-              geometry: t.geom, // assuming geometry is already a JSON object
-              properties: { 
-                name: t.name,
-                village: t.village,
-                district: t.district,
-                state: t.state,
-              },
-            })),
-          });
+          const tribalFeatures = data.map((t) => ({
+            type: "Feature",
+            geometry: typeof t.geom === "string" ? JSON.parse(t.geom) : t.geom,
+            properties: {
+              name: t.name,
+              village: t.village,
+              district: t.district,
+              state: t.state,
+            },
+          }));
+          setTribals({ type: "FeatureCollection", features: tribalFeatures });
+          if (tribalFeatures.length > 0) {
+            setSelectedTribalFeature({
+              type: "FeatureCollection",
+              features: tribalFeatures,
+            });
+            setSelectedTribal("");
+          } else {
+            setSelectedTribalFeature(null);
+          }
         })
         .catch((err) => {
-            console.error("❌ Error fetching tribals for village:", err);
-            setTribals(null); // Clear tribals on error
+          console.error("❌ Error fetching tribals:", err);
+          setTribals(null);
+          setSelectedTribalFeature(null);
         });
     } else {
-      // Clear tribal data if no village is selected
       setTribals(null);
       setSelectedTribal("");
       setSelectedTribalFeature(null);
     }
-  }, [selectedVillage]); // This effect runs whenever the selectedVillage changes
+  }, [selectedVillage]);
 
   // 📌 Load Districts
   const loadDistricts = (stateName, feature) => {
-    console.log(`📌 Loading districts for stateName=${stateName}`);
     setSelectedFeature({ type: "FeatureCollection", features: [feature] });
     fetch(`http://localhost:5000/states/${stateName}/districts`)
       .then((res) => res.json())
       .then((data) => {
-        console.log("✅ Districts fetched:", data);
         setDistricts({
           type: "FeatureCollection",
           features: data.map((d) => ({
             type: "Feature",
-            geometry:
-              typeof d.geom === "string" ? JSON.parse(d.geom) : d.geom,
+            geometry: typeof d.geom === "string" ? JSON.parse(d.geom) : d.geom,
             properties: { id: d.gid, name: d.district },
           })),
         });
@@ -159,12 +156,10 @@ const MapApp = ({ filters }) => {
 
   // 📌 Load Villages
   const loadVillages = (districtName, feature) => {
-    console.log(`📌 Loading villages for districtName=${districtName}`);
     setSelectedFeature({ type: "FeatureCollection", features: [feature] });
     fetch(`http://localhost:5000/districts/${districtName}/gomati`)
       .then((res) => res.json())
       .then((data) => {
-        console.log("✅ Villages fetched:", data);
         setVillages({
           type: "FeatureCollection",
           features: data.map((v) => ({
@@ -178,17 +173,18 @@ const MapApp = ({ filters }) => {
       .catch((err) => console.error("❌ Error fetching villages:", err));
   };
 
-
   // --- HANDLERS ---
-
   const clearTribalSelection = () => {
     setSelectedTribal("");
     setSelectedTribalFeature(null);
   };
 
-  // Handlers for map clicks (drill-down)
   const onEachState = (feature, layer) => {
-    layer.bindPopup(feature.properties.name);
+    layer.bindTooltip(feature.properties.name, {
+      permanent: false,
+      direction: "center",
+      className: "my-tooltip-class",
+    });
     layer.on("click", () => {
       clearTribalSelection();
       setSelectedState(feature.properties.id);
@@ -197,7 +193,11 @@ const MapApp = ({ filters }) => {
   };
 
   const onEachDistrict = (feature, layer) => {
-    layer.bindPopup(feature.properties.name);
+    layer.bindTooltip(feature.properties.name, {
+      permanent: false,
+      direction: "center",
+      className: "my-tooltip-class",
+    });
     layer.on("click", () => {
       setSelectedDistrict(feature.properties.name);
       loadVillages(feature.properties.name, feature);
@@ -205,28 +205,38 @@ const MapApp = ({ filters }) => {
   };
 
   const onEachVillage = (feature, layer) => {
-    layer.bindPopup(feature.properties.name);
+    layer.bindTooltip(feature.properties.name, {
+      permanent: false,
+      direction: "center",
+      className: "my-tooltip-class",
+    });
     layer.on("click", () => {
-        setSelectedVillage(feature.properties.id);
-        setSelectedFeature({ type: "FeatureCollection", features: [feature] });
+      setSelectedVillage(feature.properties.id);
+      setSelectedFeature({ type: "FeatureCollection", features: [feature] });
     });
   };
 
-  // Handlers for dropdown changes
+  // ⭐ NEW HANDLER for tribal layers
+  const onEachTribal = (feature, layer) => {
+    layer.bindTooltip(feature.properties.name, {
+      permanent: false,
+      direction: "center",
+      className: "my-tribal-tooltip",
+    });
+  };
+
   const handleStateChange = (e) => {
     const stateId = e.target.value;
     setSelectedState(stateId);
     setSelectedDistrict("");
-    setSelectedVillage(""); // Also clears tribals via useEffect
+    setSelectedVillage("");
     clearTribalSelection();
 
     if (stateId) {
       const feature = states.features.find(
         (s) => s.properties.id.toString() === stateId
       );
-      if (feature) {
-        loadDistricts(feature.properties.name, feature);
-      }
+      if (feature) loadDistricts(feature.properties.name, feature);
     } else {
       handleBackToStates();
     }
@@ -235,22 +245,21 @@ const MapApp = ({ filters }) => {
   const handleDistrictChange = (e) => {
     const districtName = e.target.value;
     setSelectedDistrict(districtName);
-    setSelectedVillage(""); // Also clears tribals via useEffect
+    setSelectedVillage("");
+    clearTribalSelection();
 
     if (districtName) {
       const feature = districts.features.find(
         (d) => d.properties.name === districtName
       );
-      if (feature) {
-        loadVillages(districtName, feature);
-      }
+      if (feature) loadVillages(districtName, feature);
     }
   };
 
   const handleVillageChange = (e) => {
     const villageId = e.target.value;
-    setSelectedVillage(villageId); // This will trigger the useEffect to fetch tribals
-
+    setSelectedVillage(villageId);
+    setSelectedTribal("");
     if (villageId) {
       const feature = villages.features.find(
         (v) => v.properties.id.toString() === villageId
@@ -265,18 +274,20 @@ const MapApp = ({ filters }) => {
     const tribalName = e.target.value;
     setSelectedTribal(tribalName);
 
-    // When a tribal land is selected, we NO LONGER clear the village selection.
-    // We only update the tribal feature to be displayed.
-
     if (tribalName && tribals) {
-        const feature = tribals.features.find(
-            (t) => t.properties.name === tribalName
-        );
-        if (feature) {
-            setSelectedTribalFeature({ type: "FeatureCollection", features: [feature] });
-        }
+      const feature = tribals.features.find(
+        (t) => t.properties.name === tribalName
+      );
+      if (feature) {
+        setSelectedTribalFeature({
+          type: "FeatureCollection",
+          features: [feature],
+        });
+      }
+    } else if (tribals) {
+      setSelectedTribalFeature(tribals);
     } else {
-        setSelectedTribalFeature(null);
+      setSelectedTribalFeature(null);
     }
   };
 
@@ -288,7 +299,7 @@ const MapApp = ({ filters }) => {
     setDistricts(null);
     setVillages(null);
     setSelectedFeature(null);
-    clearTribalSelection(); // This is already being done
+    clearTribalSelection();
   };
 
   // --- RENDER ---
@@ -349,21 +360,20 @@ const MapApp = ({ filters }) => {
           </>
         )}
 
-        {/* Tribal dropdown now appears only after a village is selected */}
         {selectedVillage && tribals && (
           <>
             <label htmlFor="tribal-select">Tribal Lands</label>
             <select
-                id="tribal-select"
-                value={selectedTribal}
-                onChange={handleTribalChange}
+              id="tribal-select"
+              value={selectedTribal}
+              onChange={handleTribalChange}
             >
-                <option value="">-- Select a Tribal Land --</option>
-                {tribals.features.map((t) => (
-                    <option key={t.properties.name} value={t.properties.name}>
-                        {t.properties.name}
-                    </option>
-                ))}
+              <option value="">-- Select a Tribal Land --</option>
+              {tribals.features.map((t) => (
+                <option key={t.properties.name} value={t.properties.name}>
+                  {t.properties.name}
+                </option>
+              ))}
             </select>
           </>
         )}
@@ -375,23 +385,29 @@ const MapApp = ({ filters }) => {
         style={{ height: "100vh", flex: 1 }}
       >
         <LayersControl position="topright">
+          {/* ✅ Street Map Layer */}
           <LayersControl.BaseLayer checked name="Street Map">
             <TileLayer
-              url={`https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=9G8Kn8KFRnxmtCrPc5Do`}
-              attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, © <a href="https://www.geoapify.com/">Geoapify</a>'
+              url="https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=9G8Kn8KFRnxmtCrPc5Do"
+              attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, © <a href="https://www.maptiler.com/">MapTiler</a>'
+              maxZoom={22}
+              zIndex={1}
             />
           </LayersControl.BaseLayer>
+
+          {/* ✅ Satellite Layer */}
           <LayersControl.BaseLayer name="Satellite">
             <TileLayer
-              url={`https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=3yNjmy7R73qOlG1VYmTN`}
-              attribution='Powered by <a href="https://www.geoapify.com/">Geoapify</a>'
-              maxZoom={40}
+              url="https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=3yNjmy7R73qOlG1VYmTN"
+              attribution='Imagery © <a href="https://www.maptiler.com/">MapTiler</a>, © <a href="https://www.openstreetmap.org/">OpenStreetMap</a>'
+              maxZoom={22}
+              zIndex={1}
             />
           </LayersControl.BaseLayer>
         </LayersControl>
 
+
         {/* --- LAYER RENDERING LOGIC --- */}
-        
         {view === "states" && states && (
           <GeoJSON
             data={states}
@@ -401,30 +417,26 @@ const MapApp = ({ filters }) => {
         )}
 
         {view === "districts" && districts && (
-          <>
-            <GeoJSON
-              data={districts}
-              style={defaultStyle}
-              onEachFeature={onEachDistrict}
-            />
-          </>
+          <GeoJSON
+            data={districts}
+            style={defaultStyle}
+            onEachFeature={onEachDistrict}
+          />
         )}
 
         {view === "villages" && villages && (
-  <GeoJSON
-    data={villages}
-    style={(feature) =>
-      feature.properties.id.toString() === selectedVillage
-        ? highlightStyle   // highlight selected village
-        : defaultStyle     // others stay normal
-    }
-    onEachFeature={onEachVillage}
-  />
-)}
-        
-        {/* --- HIGHLIGHTING LOGIC --- */}
+          <GeoJSON
+            data={villages}
+            style={(feature) =>
+              feature.properties.id.toString() === selectedVillage
+                ? highlightStyle
+                : defaultStyle
+            }
+            onEachFeature={onEachVillage}
+          />
+        )}
 
-        {/* This will now persist and show the selected State, District, OR Village */}
+        {/* Highlight + Zoom for current selection */}
         {selectedFeature && (
           <>
             <GeoJSON data={selectedFeature} style={highlightStyle} />
@@ -432,14 +444,17 @@ const MapApp = ({ filters }) => {
           </>
         )}
 
-        {/* This is the new tribal land overlay */}
-       {selectedTribalFeature && (
-  <>
-    <GeoJSON data={selectedTribalFeature} style={tribalHighlightStyle} />
-    <FitBounds feature={selectedTribalFeature} />   {/* ✅ Now zooms to tribal */}
-  </>
-)}
-
+        {/* Tribal overlay */}
+        {selectedTribalFeature && (
+          <>
+            <GeoJSON
+              data={selectedTribalFeature}
+              style={tribalHighlightStyle}
+              onEachFeature={onEachTribal}
+            />
+            <FitBounds feature={selectedTribalFeature} />
+          </>
+        )}
       </MapContainer>
     </div>
   );
