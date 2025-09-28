@@ -19,9 +19,12 @@ const pool = new Pool({
 
 // ----------------- API ENDPOINTS -----------------
 
-app.get("/states", async (req, res) => {
+// Get all assets
+app.get("/assets", async (req, res) => {
   try {
-    const result = await pool.query("SELECT gid, state, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geom FROM state_boundary");
+    const result = await pool.query(
+      "SELECT type, name, ST_AsGeoJSON(geom) as geom FROM assets"
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -29,12 +32,95 @@ app.get("/states", async (req, res) => {
   }
 });
 
+// Get all states
+app.get("/states", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT gid, state, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geom FROM state_boundary"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Get districts by state name
+app.get("/states/:stateName/districts", async (req, res) => {
+  const { stateName } = req.params;
+  try {
+    const result = await pool.query(
+      "SELECT gid, district, district_boundary.state_lgd, state_ut, ST_AsGeoJSON(ST_Transform(geom, 4326))::json AS geom FROM district_boundary WHERE district_boundary.state_ut = $1",
+      [stateName]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server error");
+  }
+});
+
+// Get villages by district name
+app.get("/districts/:districtName/gomati", async (req, res) => {
+  const { districtName } = req.params;
+  try {
+    const result = await pool.query(
+      "SELECT gid As id, vill_name As name, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geom FROM gomati WHERE UPPER(district) = UPPER($1)", 
+      [districtName]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching villages:", err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Get all tribals
+app.get("/api/tribals", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        name,
+        village,
+        state,
+        district,
+        ST_AsGeoJSON(ST_Transform(geom, 4326))::json as geom
+      FROM tribals;
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching tribals:", err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Tripura assets
+app.get("/tipuraAssets", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT district, village, vegetation_index, soil_index, n_water_index, geographic_rationale FROM tripura_geo_data"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching tripura assets:", err);
+    res.status(500).send("Database error");
+  }
+});
+
+function parseNumber(value) {
+  if (!value) return null;
+  const match = value.match(/[\d.]+/); // extract numbers with decimal
+  return match ? parseFloat(match[0]) : null;
+}
+
+
+
 // ----------------- OCR DATA INSERTION & DSS ANALYSIS LOGIC -----------------
 
 // Helper function to parse key-value pairs from OCR text
 function parseOcrData(ocrText) {
   const extract = (key) => {
-    const regex = new RegExp(`${key}:\\s*(.*?)\\s*(?=\\n|$)`, "i");
+    const regex = new RegExp(`${key}\\s*:?\\s*(.*?)\\s*(?=\\n|$)`, "i");
     const match = ocrText.match(regex);
     return match ? match[1].trim() : null;
   };
@@ -46,10 +132,19 @@ function parseOcrData(ocrText) {
     address: extract("Address"),
     village: extract("Village"),
     district: extract("District"),
-    scheduled_tribe: extract("Scheduled Tribe") === "Yes",
-    // Add other fields you want to parse
+    gram_panchayat: extract("Gram Panchayat"),
+    scheduled_tribe: /yes/i.test(extract("Scheduled Tribe") || ""),
+
+    // ✅ match keys exactly as OCR JSON produces
+    forestVillagesLand: parseNumber(extract("Extent Of Land In Forest Villages If Any")),
+    habitationLand: parseNumber(extract("- For Habitation")),
+    cultivationLand: parseNumber(extract("- For Self Cultivation")),
+    StatusTitle: extract("Pattas Leases Grants If Any"),
+    TraditionalRights: extract("Any Other Traditional Right If Any"),
+    EvidenceSubmitted: extract("Evidence In Support"),
   };
 }
+
 
 // Endpoint to SAVE claimant data from OCR
 app.post("/api/save-ocr-data", async (req, res) => {
@@ -75,16 +170,30 @@ app.post("/api/save-ocr-data", async (req, res) => {
         `;
         const values = [
             data.name, data.spouse_name, data.father_mother_name,
-            data.address, data.village, data.district, data.is_scheduled_tribe
+            data.address, data.village, data.district, data.scheduled_tribe
         ];
 
         const result = await pool.query(query, values);
         const newClaimantId = result.rows[0].claimant_id;
 
-        console.log("💾 Data inserted successfully. New claimant_id:", newClaimantId);
-        res.status(201).json({ message: "OCR data saved successfully.", claimantId: newClaimantId });
+        const query2 = `
+             INSERT INTO land_claims(claimant_id,land_in_forest_villages_acres,land_for_cultivation_acres,land_for_habitation_acres,land_title_status,traditional_rights,evidence_submitted)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)
+             RETURNING claim_id;
+        `;
+        const values2=[
+          newClaimantId,data.forestVillagesLand,data.habitationLand,data.cultivationLand,data.StatusTitle,data.TraditionalRights,data.EvidenceSubmitted
+        ]
 
-    } catch (err) {
+        const result2 = await pool.query(query2,values2);
+        const newClaimId = result2.rows[0].claim_id;
+
+        console.log("💾 Data inserted successfully. New claimant_id:", newClaimantId);
+        console.log("💾 Data inserted successfully. New claim_id:", newClaimantId);
+        res.status(201).json({ message: "OCR data saved successfully.", claimantId: newClaimId ,claim_id: newClaimId});
+
+    } catch (err) { 
+      
         console.error("❌ Database insertion error:", err);
         res.status(500).json({ error: "Database error during data insertion.", details: err.message });
     }

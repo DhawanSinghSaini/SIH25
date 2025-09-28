@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FaBars, FaTimes } from 'react-icons/fa'; // <-- import icons
+import { useState, useEffect } from 'react';
+import { FaBars, FaTimes } from 'react-icons/fa';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Footer from './components/Footer';
@@ -20,13 +20,34 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
 
+  // 🔹 On mount, check localStorage
+  useEffect(() => {
+    const storedLogin = localStorage.getItem('isLoggedIn');
+    if (storedLogin === 'true') {
+      setIsLoggedIn(true);
+    }
+    const storedSection = localStorage.getItem('activeSection');
+    if (storedSection) {
+      setActiveSection(storedSection);
+    }
+  }, []);
+
   const handleLogin = () => {
     setIsLoggedIn(true);
     setActiveSection('dashboard');
+    localStorage.setItem('isLoggedIn', 'true'); // save login
+    localStorage.setItem('activeSection', 'dashboard');
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
+    localStorage.removeItem('isLoggedIn'); // clear login
+    localStorage.removeItem('activeSection');
+  };
+
+  const handleNavigate = (section) => {
+    setActiveSection(section);
+    localStorage.setItem('activeSection', section);
   };
 
   if (!isLoggedIn) {
@@ -35,7 +56,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
-      <Navbar onNavigate={setActiveSection} onLogout={handleLogout} />
+      <Navbar onNavigate={handleNavigate} onLogout={handleLogout} />
 
       {/* Sidebar Toggle Icon */}
       <div
@@ -47,7 +68,7 @@ function App() {
 
       {/* Sidebar + Content */}
       <div className="flex flex-1">
-        {showSidebar && <Sidebar onNavigate={setActiveSection} />}
+        {showSidebar && <Sidebar onNavigate={handleNavigate} />}
 
         <main className="flex-1 p-6 transition-all duration-300">
           <div className="bg-white rounded-lg shadow-md p-6 space-y-8">
